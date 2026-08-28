@@ -1,94 +1,81 @@
 # Autocomplete Engine
 
-A prefix-search autocomplete engine in Python, built up from a plain trie to a compressed radix tree. It returns **frequency-ranked** completions, tolerates **typos** via bounded edit distance, and includes a **benchmark** showing the radix tree's memory savings over a naive trie.
+A prefix-search autocomplete engine in Python. Give it a list of words with
+frequencies, then ask for the completions of any prefix and it returns the most
+common matches first, the way a search box or IDE suggestion list does. It's
+built around a **trie** (prefix tree).
 
 ```
-> comp
+$ python main.py --prefix comp
   completions for 'comp': computer, complete, complex, computing, complexity, ...
-> ~pyton
-  did you mean (<= 2 edits from 'pyton'): python (d=1)
 ```
 
-## Why this exists
+## What it does right now
 
-Autocomplete is a great small-scale systems problem: it starts with one data structure (the trie) and naturally grows into questions about ranking, approximate matching, and memory which the same questions real search boxes, IDEs, and phone keyboards have to answer.
+- **Loads a word-frequency list**, a plain `word<TAB>frequency` file, skipping
+  blank lines and comments.
+- **Inserts words into a trie**, accumulating frequency when a word appears more
+  than once.
+- **Ranked prefix search**, given a prefix, returns up to *k* completions
+  ordered by frequency (most common first), so `comp` surfaces `computer`
+  before `complexity`.
 
-## Features
-
-| Tier | Feature | Where |
-|------|---------|-------|
-| 0 | Core trie: insert + prefix lookup | `autocomplete/trie.py` |
-| 1 | Frequency-ranked suggestions (top-k) | `Trie.search` |
-| 2 | Typo-tolerant fuzzy search (bounded edit distance) | `Trie.fuzzy_search` |
-| 3 | Compressed **radix tree** for lower memory | `autocomplete/radix.py` |
+That's the whole of what's implemented so far. The typo-tolerant search and the
+compressed-tree variant described under [Planned](#planned) are **not built yet**.
 
 ## Quick start
 
+No third-party dependencies and the engine is pure Python standard library.
+
 ```bash
-# no third-party runtime deps; pytest is only needed for the tests
-pip install -r requirements.txt
-
-# interactive demo (type a prefix; prefix with ~ for fuzzy search)
-python main.py
-
-# one-shot
+# one-shot: print completions for a prefix and exit
 python main.py --prefix comp
-python main.py --fuzzy pyton --max-distance 2
+python main.py --prefix te
 
-# trie vs radix tree comparison
-python benchmark.py
-
-# run the tests
-python -m pytest
+# interactive: type a prefix and press Enter to see completions
+python main.py
 ```
+
+By default it loads `data/sample_words.txt` (a small hand-built sample set with
+lots of shared prefixes). Point it at a different file with `--data`.
 
 ## How it works
 
-**Trie (Tiers 0–2).** Each node holds one character; a path from the root spells a prefix. `search` walks to the node ending the prefix, gathers every word in that subtree, and returns the top *k* by frequency using a heap (`O(n log k)` rather than fully sorting).
+A trie stores words as a tree of single characters: each path from the root
+spells out a prefix, and words that begin the same way share the same nodes near
+the top.
 
-**Fuzzy search (Tier 2).** `fuzzy_search` finds every word within a set number of edits (insertions, deletions, substitutions) of the query. It walks the trie while maintaining a single row of the Levenshtein dynamic-programming table. Because words that share a prefix share the top of that table, each shared prefix is scored once instead of re-running edit distance against every word; branches are pruned as soon as their best possible distance exceeds the budget.
+- **Insert** walks down from the root one character at a time, creating any nodes
+  that don't exist yet, and records the word's frequency on the final node. A
+  node is marked as the end of a word by having a non-zero frequency, which means
+  a word can also be a prefix of a longer one (`car` and `card` coexist cleanly).
+- **Search** walks to the node where the prefix ends, then gathers every word in
+  the subtree beneath it, rebuilding each word from the path taken. It sorts
+  those matches by frequency and returns the top *k*.
 
-**Radix tree (Tier 3).** A plain trie stores `international` as a chain of 13 single-child nodes. A radix (Patricia) tree collapses any such chain into one edge carrying the whole substring, so it uses far fewer nodes. The trade-off is harder insertion: when a new word partially matches an existing edge, that edge has to be **split**. `RadixTree` exposes the same ranked `search` as `Trie`, and a test asserts the two return identical results.
+## Planned
 
-## Benchmark
+These are the directions I'm taking the project next. **None of them are
+implemented yet** as they're a roadmap, not a feature list:
 
-Loading the 84-word sample set into both structures
-(`python benchmark.py`):
-
-```
-                        Trie   RadixTree
-nodes                    280         119
-lookup (us)            10.75        6.86
-
-Radix tree uses 57.5% fewer nodes than the plain trie.
-```
-
-Node count is a proxy for memory footprint; the reduction grows with dataset size and with how many words share prefixes. (Numbers vary by machine; rerun locally.)
+- **Typo-tolerant (fuzzy) search**, find words within a small number of edits of
+  the query, so a search for `pyton` still suggests `python`.
+- **Compressed radix tree**, a variant that collapses long single-child chains
+  into one edge to use less memory on large datasets, plus a benchmark comparing
+  it against the plain trie.
+- **A larger, real-world dataset**, load a proper word-frequency corpus of
+  hundreds of thousands of words and measure lookup performance at that scale.
+- **A small web demo**, suggestions updating live as you type.
+- **An automated test suite** covering the above.
 
 ## Project layout
 
 ```
 autocomplete/
-  trie.py      # trie: ranked search + fuzzy search  (Tiers 0-2)
-  radix.py     # compressed radix tree               (Tier 3)
+  __init__.py
+  trie.py      # trie: insert + ranked prefix search
   loader.py    # load "word<TAB>frequency" files
-tests/         # pytest suite (trie, radix, equivalence)
-data/          # sample word-frequency dataset
-benchmark.py   # trie vs radix comparison
-main.py        # interactive / CLI demo
+data/
+  sample_words.txt   # small sample word-frequency dataset
+main.py        # command-line demo
 ```
-
-## Future work (Tiers 4–5)
-
-- **Tier 4 — scale & persistence.** Load a real word-frequency dataset
-  (hundreds of thousands of words), save/load the structure to disk, and
-  benchmark lookup latency at that scale.
-- **Tier 5 — live demo.** A small REST API (Flask/FastAPI) behind a web page
-  that shows suggestions as you type, so the project is clickable.
-- **Precomputed top-k per node** to make hot-prefix lookups `O(k)`.
-- **Fuzzy search over the radix tree** (the DP row has to advance across
-  multi-character edge labels) — a nice extension for a stronger project.
-
-## License
-
-MIT
