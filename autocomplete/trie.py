@@ -17,21 +17,24 @@ class Trie:
             node = node.children[char]
         node.frequency += frequency
 
-    def search(self, prefix):
+    def search(self, prefix, k=10): # k = number of matches 
         # walk to the node where 'prefix' ends
         node = self.root
         for char in prefix:
             if char not in node.children:
-                return[] # prefix not in the tree -> no completions
+                return []
             node = node.children[char]
 
-        # collect every word in the subtree below that ndoe
-        results = []
-        self._collect(node, prefix, results)
-        return results
+        # collect (frequency, word) pairs below that node
+        matches = []
+        self._collect(node, prefix, matches)
 
-    def _collect(self, node, wordSoFar, results): #_collect is a private helper
+        # rank by frequency (highest first), keep the top k.
+        matches.sort(key=lambda pair: (-pair[0], pair[1]))
+        return [word for freq, word in matches[:k]]
+
+    def _collect(self, node, wordSoFar, matches):
         if node.frequency > 0:
-            results.append(wordSoFar)
+            matches.append((node.frequency, wordSoFar))
         for char, child in node.children.items():
-            self._collect(child, wordSoFar + char, results)
+            self._collect(child, wordSoFar + char, matches)

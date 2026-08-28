@@ -1,9 +1,8 @@
 from autocomplete import Trie, load_into
 
 t = Trie()
-count = load_into(t, "data/sample_words.txt")
-print(f"loaded {count} words")
+load_into(t, "data/sample_words.txt")
 
-results = t.search("comp")
-print(f"{len(results)} completions for 'comp':")
-print(sorted(results))
+print(t.search("comp", k=5))
+print(t.search("te", k=5))
+print(t.search("auto"))
