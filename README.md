@@ -1,4 +1,4 @@
-# Autocomplete Engine
+# Prefix Autocomplete
 
 A prefix-search autocomplete engine in Python. Give it a list of words with
 frequencies, then ask for the completions of any prefix and it returns the most
