@@ -33,6 +33,28 @@ class Trie:
         matches.sort(key=lambda pair: (-pair[0], pair[1]))
         return [word for freq, word in matches[:k]]
 
+    def fuzzySearch(self, query, maxDistance=2, k=10):
+        results = [] # distance, frequency, word
+        firstRow = list(range(len(query) + 1)) # the seeded top row
+        for char, child in self.root.children.items():
+            self._fuzzy(child, char, char, query, firstRow, maxDistance, results)
+        results.sort(key=lambda r: (r[0], -r[1], r[2]))
+        return [(word, distance) for distance, freq, word in results[:k]]
+
+    def _fuzzy(self, node, char, wordSoFar, query, previousRow, maxDistance, results):
+        columns = len(query) + 1
+        currentRow = [previousRow[0] + 1] # left column seed for this row
+        for col in range(1, columns):
+            fromLeft = currentRow[col - 1] + 1
+            fromAbove = previousRow[col] + 1
+            fromDiagonal = previousRow[col - 1] + (0 if query[col - 1] == char else 1)
+            currentRow.append(min(fromLeft, fromAbove, fromDiagonal))
+        if node.frequency > 0 and currentRow[-1] <= maxDistance:
+            results.append((currentRow[-1], node.frequency, wordSoFar))
+        if min(currentRow) <= maxDistance:
+            for nextChar, child in node.children.items():
+                self._fuzzy(child, nextChar, wordSoFar + nextChar, query, currentRow, maxDistance, results)
+
     def _collect(self, node, wordSoFar, matches):
         if node.frequency > 0:
             matches.append((node.frequency, wordSoFar))

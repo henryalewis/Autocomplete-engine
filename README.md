@@ -1,13 +1,16 @@
 # Prefix Autocomplete
 
 A prefix-search autocomplete engine in Python. Give it a list of words with
-frequencies, then ask for the completions of any prefix and it returns the most
-common matches first, the way a search box or IDE suggestion list does. It's
-built around a **trie** (prefix tree).
+frequencies, then ask for the completions of any prefix — it returns the most
+common matches first, the way a search box or IDE suggestion list does. It also
+tolerates typos. It's built around a **trie** (prefix tree).
 
 ```
 $ python main.py --prefix comp
   completions for 'comp': computer, complete, complex, computing, complexity, ...
+
+$ python main.py --fuzzy pyton
+  did you mean (<= 2 edits from 'pyton'): python (d=1)
 ```
 
 ## What it does right now
@@ -19,9 +22,14 @@ $ python main.py --prefix comp
 - **Ranked prefix search**, given a prefix, returns up to *k* completions
   ordered by frequency (most common first), so `comp` surfaces `computer`
   before `complexity`.
+- **Typo-tolerant (fuzzy) search**, finds words within a small number of edits
+  of the query, so a search for `pyton` still suggests `python`. It walks the
+  trie while maintaining one row of the edit-distance table, so words that share
+  a prefix share that computation, and branches that exceed the edit budget are
+  pruned.
 
-That's the whole of what's implemented so far. The typo-tolerant search and the
-compressed-tree variant described under [Planned](#planned) are **not built yet**.
+That's the whole of what's implemented so far. The compressed-tree variant
+described under [Planned](#planned) is **not built yet**.
 
 ## Quick start
 
@@ -32,7 +40,11 @@ No third-party dependencies and the engine is pure Python standard library.
 python main.py --prefix comp
 python main.py --prefix te
 
-# interactive: type a prefix and press Enter to see completions
+# one-shot: fuzzy (typo-tolerant) search
+python main.py --fuzzy pyton
+python main.py --fuzzy progam --max-distance 1
+
+# interactive: type a prefix, or prefix with ~ for fuzzy search
 python main.py
 ```
 
@@ -52,14 +64,17 @@ the top.
 - **Search** walks to the node where the prefix ends, then gathers every word in
   the subtree beneath it, rebuilding each word from the path taken. It sorts
   those matches by frequency and returns the top *k*.
+- **Fuzzy search** computes edit (Levenshtein) distance between the query and
+  the words in the trie, but shares work across common prefixes: it walks the
+  trie carrying a single row of the dynamic-programming table, computing one new
+  row per character. A branch is abandoned as soon as its best possible distance
+  exceeds the allowed budget.
 
 ## Planned
 
 These are the directions I'm taking the project next. **None of them are
 implemented yet** as they're a roadmap, not a feature list:
 
-- **Typo-tolerant (fuzzy) search**, find words within a small number of edits of
-  the query, so a search for `pyton` still suggests `python`.
 - **Compressed radix tree**, a variant that collapses long single-child chains
   into one edge to use less memory on large datasets, plus a benchmark comparing
   it against the plain trie.
@@ -73,7 +88,7 @@ implemented yet** as they're a roadmap, not a feature list:
 ```
 autocomplete/
   __init__.py
-  trie.py      # trie: insert + ranked prefix search
+  trie.py      # trie: insert, ranked prefix search, fuzzy search
   loader.py    # load "word<TAB>frequency" files
 data/
   sample_words.txt   # small sample word-frequency dataset
