@@ -1,7 +1,7 @@
 # Prefix Autocomplete
 
 A prefix-search autocomplete engine in Python. Give it a list of words with
-frequencies, then ask for the completions of any prefix — it returns the most
+frequencies, then ask for the completions of any prefix, it returns the most
 common matches first, the way a search box or IDE suggestion list does. It also
 tolerates typos. It's built around a **trie** (prefix tree).
 
